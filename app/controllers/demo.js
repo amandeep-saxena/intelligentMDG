@@ -4,8 +4,8 @@ const mailSender = require("../utils/mailSender");
 const request = require("request");
 const axios = require("axios");
 
-const fs = require('fs');
-const { promisify } = require('util');
+const fs = require("fs");
+const { promisify } = require("util");
 
 const readFileAsync = promisify(fs.readFile);
 
@@ -126,42 +126,52 @@ module.exports = function (app) {
       });
   });
 
-  apiRoutes.get("/countries23", async (req, res) => {
+  app.get("/get-flag", async (req, res) => {
     try {
       const response = await axios.get("https://restcountries.com/v3.1/all");
-      const countries = response.data.map(async (country) => {
+      const countries = response.data.map((country) => {
         const flagUrl = `https://flagcdn.com/w320/${country.cca2.toLowerCase()}.png`;
-        const flagBase64 = await getBase64FromUrl(flagUrl);
         return {
-          flag: flagBase64,
+          flag: flagUrl,
           dial_code:
             country.idd.root +
             (country.idd.suffixes ? country.idd.suffixes[0] : ""),
         };
       });
-      const countriesWithData = await Promise.all(countries);
-      console.log("Fetched countries:", countriesWithData);
-      res.json(countriesWithData);
+
+      const countriesWithFlags = await Promise.all(
+        countries.map(async (country) => {
+          try {
+            const response = await axios.get(country.flag, {
+              responseType: "arraybuffer",
+            });
+            const base64 = Buffer.from(response.data, "binary").toString(
+              "base64"
+            );
+            return {
+              flag: `data:image/png;base64,${base64}`,
+              dial_code: country.dial_code,
+            };
+          } catch (error) {
+            console.error(
+              `Error fetching flag for ${country.dial_code}:`,
+              error
+            );
+            return {
+              flag: null,
+              dial_code: country.dial_code,
+            };
+          }
+        })
+      );
+
+      console.log("Fetched countries with flags:", countriesWithFlags);
+      res.json(countriesWithFlags);
     } catch (error) {
       console.error("Error fetching country data:", error);
-      res
-        .status(500)
-        .json({ error: "An error occurred while fetching country data" });
+      res.status(500).json({ error: "Failed to fetch country data" });
     }
   });
-
-  async function getBase64FromUrl(url) {
-    try {
-      const response = await axios.get(url, {
-        responseType: "arraybuffer",
-      });
-      const base64 = Buffer.from(response.data, "binary").toString("base64");
-      return `data:image/png;base64,${base64}`;
-    } catch (error) {
-      console.error(`Error fetching ${url}:`, error);
-      return null;
-    }
-  }
 
   app.use("/", apiRoutes);
 };

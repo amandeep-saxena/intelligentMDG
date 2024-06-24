@@ -80,7 +80,7 @@ const Demo = sequelize.define(
 
 (async () => {
   try {
-    await sequelize.sync({alter : false});
+    await sequelize.sync();
     console.log("Database synchronized");
   } catch (error) {
     console.error("Error synchronizing database:", error);
@@ -88,3 +88,5 @@ const Demo = sequelize.define(
 })();
 
 module.exports = Demo;
+
+// alter : false
